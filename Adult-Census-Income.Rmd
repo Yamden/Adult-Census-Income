@@ -1,0 +1,118 @@
+---
+title: "Adult Census Income"
+Author: Camden Squire
+Type: Classification
+output: pdf_document
+---
+
+
+This dataset is Adult Census income collected by the U.S. Census Bureau in 1994 and 1995.
+Data can be found on kaggle: https://www.kaggle.com/uciml/adult-census-income
+
+Some of the steps that had to be made to cleanup the data was to re-classify most of the columns as factors in order for me to predict and test on them. In addition to that there were many rows that had NA or certain variables that had missing values and those needed to be filled in. I also had to re-classify if a person made more than 50k or less than 50k to make it easier to factor the income. In addition to that, there was 2 columns that I removed because I deemed them not important to the data - These were the fnlwgt (final weight of that census believes the entry represents) and education.num (number of years of education).
+```{r}
+# Reading in data
+df <- read.csv("adult.csv", header = TRUE)
+
+# DATA CLEANING
+df$workclass <- as.factor(df$workclass)
+df$education <- as.factor(df$education)
+df$marital.status <- as.factor(df$marital.status)
+df$occupation <- as.factor(df$occupation)
+df$relationship <- as.factor(df$relationship)
+df$race <- as.factor(df$race)
+df$sex <- as.factor(df$sex)
+df$native.country <- as.factor(df$native.country)
+df$income <- as.factor(df$income)
+
+# re-classifying
+df$income<-ifelse(df$income=='>50K',1,0)
+df$workclass<-ifelse(df$workclass=='?','Unknown',as.character(df$workclass))
+df$income <- as.factor(df$income)
+
+# Removing columns fnlwgt and education.num
+df <- df[,-3]
+df <- df[,-4]
+
+df[df == "?"] <- NA
+df <- na.omit(df)
+
+colSums(is.na(df))
+```
+# DATA EXPLORATION
+```{r}
+# DATA EXPLORATION #
+str(df)
+names(df)
+summary(df)
+dim(df)
+head(df)
+
+# GRAPHS #
+boxplot(df$income, df$age)
+plot(df$education, df$age)
+plot(df$education, df$income)
+plot(df$occupation, df$income)
+plot(df$race, df$income)
+plot(df$hours.per.week, df$income)
+```
+
+# ML Algorithms
+```{r}
+
+set.seed(1234)
+i <- sample(1:nrow(df), nrow(df)*.75, replace = FALSE)
+train <- df[i,]
+test <- df[-i,]
+
+# Logistic Regression
+glm1 <- glm(income~., data=train, family = "binomial")
+library(caret)
+
+probs1 <- predict(glm1, data = train, family = "binomial")
+pred1 <- ifelse(probs1>.5, "1", "0")
+pred1 <- as.factor(pred1)
+confusionMatrix(pred1, train$income)
+```
+I used Logistic Regression here because you could evaluate the amount a person could make based on the given information. In this case, it's a simple if they made more than 50k or less than 50k, but using the information you could predict either. The results of the Logistic Regression were as followed:
+ACC: 84%
+The accuracy of the logistic regression was quite high at 84%. Taking a closer look, the sensitivity was at 96%, meaning that the model could find 96% of all the predicted incomes that are more than 50k. Specificity is at 48%, meaning that the model could find 48% of all predicted incomes less than 50k. This model was good at predicting those that made more than 50k, but not so much for those that makes less than 50k.
+
+```{r}
+# Naive Bayes
+library(e1071)
+nb1 <- naiveBayes(income~., data=train)
+probs2 <- predict(nb1, newdata = test)
+confusionMatrix(probs2, test$income)
+```
+I used Naive Bayes here due to the large data set that is given. By comparing the 50k income with the different variety of classes that are provided. In this case, those that make more than 50k can be compared to those that make less to generate a prediction. The results of the Naive Bayes are as follows:
+ACC: 80%
+The accuracy is actually quite high and with the sensitivity at 94%, that means the model could find 94% of all the predicted incomes that are more than 50k. Specificity is at 41% meaning that the model could find 41% of all predicted incomes less than 50k. The Naive Bayes was good at predicting those that made more than 50k, but not so much for those that make less than 50k.
+```{r}
+# Decision Tree
+library(rpart)
+library(rpart.plot)
+decision_tree <- rpart(income~., data = test, method = "class")
+rpart.plot(decision_tree)
+test$predicted.income <- predict(decision_tree, test, type = "class")
+confMat <- table(test$predicted.income, test$income)
+accuracy <- sum(diag(confMat))/sum(confMat)
+print("Confusion Matrix")
+confMat
+print("Accuracy: ")
+accuracy
+```
+I used a Decision Tree because with many variables, the model could split the dataset into smaller models to evaluate the complexity if a person could make more than 50k or not. In this case, the decision tree split relationship into occupation into education followed by their income.
+ACC: 84%
+The model recorded an 84% accuracy, which is quite high. 
+
+
+# RESULTS ANALYSIS #
+Ranking the algorithms from best to worst:
+1. Logistic Regression
+2. Decision Tree
+3. Naive Bayes
+
+The reason why Naive Bayes was ranked last was because it had the lowest accuracy. I think this attributed to the large dataset and Naive Bayes operates on strong assumptions, so as a result it had a lower accuracy compared to the other models. The decision tree was next best because the data was split up into a binary operation that allowed the decision tree to predict if they made greater than 50k or less than 50k. A binary predictor worked best for the decision tree and as a result the model was able to predict on either binary predictions. Logistic Regression worked the best because it was predicting an income of either >50k or <50k, both of these values converted to a binary to make it easier for the Logistic Regression to predict. The model only had to predict weather, yes they made greater than 50k, or no they didnt make greater than 50k, which is why I think it had such great success. Additionally the reason why I think all the models predicted a low specificity is because their was a greater quantity to predict on for those that made less than 50k than those that made more than 50k. There are fewer occupations and certain degrees that allow the population to make more than 50k, so in that sense this could also explain why there was a high sensitivity and a low specificity. 
+
+All the model scripts were able to learn from the data and this is useful to know because if you wanted to know on certain incomes in a demographic than using these algorithms would be best, if you stuck with a binary prediction for the income. The decision tree would be best if you wanted to observe the breakdown for each attribute, but the logistic regression would be best if you wanted data to tell you if a certain demographic is making a certain income amount. 
